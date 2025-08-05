@@ -5,11 +5,9 @@ import { userRoutes } from "./routes/userRoutes";
 import { healthRoutes } from "./routes/healthRoutes";
 import { ethereumRoutes } from "./routes/ethereumRoutes";
 
-// Load environment variables
 dotenv.config({ path: './src/.env' });
 
 const app = new Elysia()
-  // Add Swagger documentation
   .use(swagger({
     path: '/docs',
     documentation: {
@@ -34,12 +32,10 @@ const app = new Elysia()
     }
   });
 
-// Register routes
 healthRoutes(app);
 userRoutes(app);
 ethereumRoutes(app);
 
-// Start the server
 app.listen(3000);
 
 console.log(

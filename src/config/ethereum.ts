@@ -1,15 +1,12 @@
 import { ethers } from 'ethers';
 import * as dotenv from 'dotenv';
 
-// Load environment variables from .env file
 dotenv.config({ path: './src/.env' });
 
-// Configure provider (use environment variables in production)
 export const provider = new ethers.JsonRpcProvider(
   process.env.ETH_RPC_URL || 'http://localhost:8545'
 );
 
-// Function to create a wallet instance
 const createWallet = () => {
   const privateKey = process.env.PRIVATE_KEY;
   console.log('Environment variables loaded:', {
@@ -31,11 +28,9 @@ const createWallet = () => {
   }
 };
 
-// Export wallet instance
 export const wallet = createWallet();
 
-// Network configuration
 export const networkConfig = {
-  chainId: parseInt(process.env.CHAIN_ID || '1'), // 1 for Ethereum mainnet
+  chainId: parseInt(process.env.CHAIN_ID || '1'),
   networkName: process.env.NETWORK_NAME || 'mainnet',
 };

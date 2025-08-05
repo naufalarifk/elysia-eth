@@ -25,7 +25,6 @@ export class EthereumService {
     };
   }
 
-  // Get ETH balance for an address
   static async getBalance(address: string): Promise<ServiceResponse<{
     address: string;
     balance: string;
@@ -46,7 +45,6 @@ export class EthereumService {
     }
   }
 
-  // Send ETH to an address
   static async sendTransaction(to: string, amount: string): Promise<ServiceResponse<{
     hash: string;
     from: string;
@@ -86,7 +84,6 @@ export class EthereumService {
     }
   }
 
-  // Get transaction details
   static async getTransaction(hash: string): Promise<ServiceResponse<{
     hash: string;
     from: string;
@@ -124,7 +121,6 @@ export class EthereumService {
     }
   }
 
-  // Get latest block number
   static async getBlockNumber(): Promise<ServiceResponse<{
     blockNumber: number;
   }>> {
@@ -141,7 +137,6 @@ export class EthereumService {
     }
   }
 
-  // Get gas price
   static async getGasPrice(): Promise<ServiceResponse<{
     gasPrice: string;
     maxFeePerGas: string | null;

@@ -4,13 +4,10 @@ import { userController } from '../controllers/userController';
 export const userRoutes = (app: Elysia) => {
   return app
     .group('/users', app => app
-      // Get all users
       .get('/', async () => await userController.getAllUsers())
       
-      // Get user by ID
       .get('/:id', async ({ params: { id } }) => await userController.getUserById({ id }))
       
-      // Create new user
       .post('/', async ({ body }) => await userController.createUser({ body }), {
         body: t.Object({
           name: t.String(),
@@ -18,7 +15,6 @@ export const userRoutes = (app: Elysia) => {
         })
       })
       
-      // Update user
       .put('/:id', async ({ params: { id }, body }) => await userController.updateUser({ 
         id, 
         body
@@ -29,7 +25,6 @@ export const userRoutes = (app: Elysia) => {
         })
       })
       
-      // Delete user
       .delete('/:id', async ({ params: { id } }) => await userController.deleteUser({ id }))
     );
 };
