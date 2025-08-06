@@ -3,8 +3,15 @@ import { db } from '../config/database';
 import { users } from '../db/schema/users';
 
 export const userController = {
-  getAllUsers: async () => {
+  getAllUsers: async ({ user }: { user: any }) => {
     try {
+      if (!user) {
+        return {
+          status: 401,
+          error: "Unauthorized"
+        };
+      }
+
       const allUsers = await db.select().from(users);
       return {
         status: 200,
@@ -18,10 +25,17 @@ export const userController = {
     }
   },
 
-  getUserById: async ({ id }: { id: string }) => {
+  getUserById: async ({ id, user }: { id: string; user: any }) => {
     try {
-      const user = await db.select().from(users).where(eq(users.id, parseInt(id))).limit(1);
-      if (!user.length) {
+      if (!user) {
+        return {
+          status: 401,
+          error: "Unauthorized"
+        };
+      }
+
+      const foundUser = await db.select().from(users).where(eq(users.id, parseInt(id))).limit(1);
+      if (!foundUser.length) {
         return {
           status: 404,
           error: "User not found"
@@ -29,7 +43,7 @@ export const userController = {
       }
       return {
         status: 200,
-        data: user[0]
+        data: foundUser[0]
       };
     } catch (error) {
       return {
@@ -39,9 +53,16 @@ export const userController = {
     }
   },
 
-  createUser: async ({ body }: { body: { name: string; email: string } }) => {
+  createUser: async ({ body, user }: { body: { name: string; email: string; password: string }; user: any }) => {
     try {
-      const newUser = await db.insert(users).values(body).returning();
+      if (!user) {
+        return {
+          status: 401,
+          error: "Unauthorized"
+        };
+      }
+
+      const newUser = await db.insert(users).values({ ...body, createdAt: new Date(), updatedAt: new Date() }).returning();
       return {
         status: 201,
         data: newUser[0]
@@ -54,8 +75,15 @@ export const userController = {
     }
   },
 
-  updateUser: async ({ id, body }: { id: string; body: Partial<{ name: string; email: string }> }) => {
+  updateUser: async ({ id, body, user }: { id: string; body: Partial<{ name: string; email: string }>; user: any }) => {
     try {
+      if (!user) {
+        return {
+          status: 401,
+          error: "Unauthorized"
+        };
+      }
+
       const updatedUser = await db
         .update(users)
         .set({ ...body, updatedAt: new Date() })
@@ -81,8 +109,15 @@ export const userController = {
     }
   },
 
-  deleteUser: async ({ id }: { id: string }) => {
+  deleteUser: async ({ id, user }: { id: string; user: any }) => {
     try {
+      if (!user) {
+        return {
+          status: 401,
+          error: "Unauthorized"
+        };
+      }
+
       const deletedUser = await db
         .delete(users)
         .where(eq(users.id, parseInt(id)))

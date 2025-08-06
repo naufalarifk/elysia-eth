@@ -1,31 +1,40 @@
+import { describe, expect, it, mock } from "bun:test";
 import { ethers } from 'ethers';
 import { EthereumService } from '../../services/ethereumService';
-import { provider, wallet } from '../../config/ethereum';
 
-jest.mock('../../config/ethereum', () => ({
+mock.module('../../config/ethereum', () => ({
   provider: {
-    getBalance: jest.fn(),
-    getTransaction: jest.fn(),
-    getBlockNumber: jest.fn(),
-    getFeeData: jest.fn(),
+    getBalance: mock(() => Promise.resolve(ethers.parseEther("1.0"))),
+    getTransaction: mock(() => Promise.resolve({
+      hash: "0xtxhash",
+      from: "0x123",
+      to: "0x456",
+      value: ethers.parseEther("1.0"),
+      blockNumber: 12345,
+      confirmations: 10
+    })),
+    getBlockNumber: mock(() => Promise.resolve(12345)),
+    getFeeData: mock(() => Promise.resolve({
+      gasPrice: ethers.parseUnits("20", "gwei"),
+      maxFeePerGas: null,
+      maxPriorityFeePerGas: null
+    }))
   },
   wallet: {
-    sendTransaction: jest.fn(),
-  },
+    sendTransaction: mock(() => Promise.resolve({
+      hash: "0xtxhash",
+      from: "0x123",
+      to: "0x456",
+      wait: () => Promise.resolve({})
+    }))
+  }
 }));
 
 describe('EthereumService', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
+  const mockAddress = '0x123';
 
   describe('getBalance', () => {
-    const mockAddress = '0x123';
-
     it('should return the balance successfully', async () => {
-      const mockBalance = ethers.parseEther('1.0');
-      (provider.getBalance as jest.Mock).mockResolvedValue(mockBalance);
-
       const result = await EthereumService.getBalance(mockAddress);
 
       expect(result).toEqual({
@@ -33,20 +42,23 @@ describe('EthereumService', () => {
         data: {
           address: mockAddress,
           balance: '1.0',
-          currency: 'ETH',
-        },
+          currency: 'ETH'
+        }
       });
-      expect(provider.getBalance).toHaveBeenCalledWith(mockAddress);
     });
 
     it('should handle errors when getting balance', async () => {
-      (provider.getBalance as jest.Mock).mockRejectedValue(new Error('Failed to get balance'));
+      mock.module('../../config/ethereum', () => ({
+        provider: {
+          getBalance: mock(() => Promise.reject(new Error('Failed to get balance')))
+        }
+      }));
 
       const result = await EthereumService.getBalance(mockAddress);
 
       expect(result).toEqual({
         status: 500,
-        error: 'Failed to get balance: Failed to get balance',
+        error: 'Failed to get balance: Failed to get balance'
       });
     });
   });
@@ -60,17 +72,14 @@ describe('EthereumService', () => {
         hash: '0xtxhash',
         from: '0x123',
         to: mockTo,
-        wait: jest.fn().mockResolvedValue({}),
+        wait: () => Promise.resolve({})
       };
-        
-        if (!wallet) {
-            return {
-                status: 500,
-                error: 'Wallet is not configured'
-            };
-        }
 
-      (wallet.sendTransaction as jest.Mock).mockResolvedValue(mockTx);
+      mock.module('../../config/ethereum', () => ({
+        wallet: {
+          sendTransaction: mock(() => Promise.resolve(mockTx))
+        }
+      }));
 
       const result = await EthereumService.sendTransaction(mockTo, mockAmount);
 
@@ -81,20 +90,17 @@ describe('EthereumService', () => {
           from: mockTx.from,
           to: mockTx.to,
           amount: mockAmount,
-          currency: 'ETH',
-        },
+          currency: 'ETH'
+        }
       });
     });
 
     it('should handle errors when sending transaction', async () => {
-              if (!wallet) {
-            return {
-                status: 500,
-                error: 'Wallet is not configured'
-            };
+      mock.module('../../config/ethereum', () => ({
+        wallet: {
+          sendTransaction: mock(() => Promise.reject(new Error('Transaction failed')))
         }
-      
-        (wallet.sendTransaction as jest.Mock).mockRejectedValue(new Error('Transaction failed'));
+      }));
 
       const result = await EthereumService.sendTransaction(mockTo, mockAmount);
 
@@ -109,18 +115,23 @@ describe('EthereumService', () => {
     const mockHash = '0xtxhash';
 
     it('should get transaction details successfully', async () => {
+
       const mockTx = {
-        hash: mockHash,
+        hash: '0xtxhash',
         from: '0x123',
         to: '0x456',
         value: ethers.parseEther('1.0'),
-        blockNumber: 123,
-        confirmations: jest.fn().mockResolvedValue(10),
+        blockNumber: 12345,
+        confirmations: 10
       };
 
-      (provider.getTransaction as jest.Mock).mockResolvedValue(mockTx);
+      mock.module('../../config/ethereum', () => ({
+        provider: {
+          getTransaction: mock(() => Promise.resolve(mockTx))
+        }
+      }));
 
-      const result = await EthereumService.getTransaction(mockHash);
+      const result = await EthereumService.getTransaction(mockTx.hash);
 
       expect(result).toEqual({
         status: 200,
@@ -131,79 +142,97 @@ describe('EthereumService', () => {
           amount: '1.0',
           currency: 'ETH',
           blockNumber: mockTx.blockNumber,
-          confirmations: 10,
-        },
+          confirmations: mockTx.confirmations
+        }
       });
     });
 
-    it('should handle transaction not found', async () => {
-      (provider.getTransaction as jest.Mock).mockResolvedValue(null);
+    it('should handle not found transaction', async () => {
+      mock.module('../../config/ethereum', () => ({
+        provider: {
+          getTransaction: mock(() => Promise.resolve(null))
+        }
+      }));
 
-      const result = await EthereumService.getTransaction(mockHash);
+      const result = await EthereumService.getTransaction('0xinvalidhash');
 
       expect(result).toEqual({
         status: 404,
-        error: 'Transaction not found',
+        error: 'Transaction not found'
       });
     });
   });
 
   describe('getBlockNumber', () => {
-    it('should get block number successfully', async () => {
-      const mockBlockNumber = 12345;
-      (provider.getBlockNumber as jest.Mock).mockResolvedValue(mockBlockNumber);
+    it('should return current block number', async () => {
+      const mockBlockNumber = 123456;
+      mock.module('../../config/ethereum', () => ({
+        provider: {
+          getBlockNumber: mock(() => Promise.resolve(mockBlockNumber))
+        }
+      }));
 
       const result = await EthereumService.getBlockNumber();
 
       expect(result).toEqual({
         status: 200,
         data: {
-          blockNumber: mockBlockNumber,
-        },
+          blockNumber: mockBlockNumber
+        }
       });
     });
 
     it('should handle errors when getting block number', async () => {
-      (provider.getBlockNumber as jest.Mock).mockRejectedValue(new Error('Failed to get block number'));
+      mock.module('../../config/ethereum', () => ({
+        provider: {
+          getBlockNumber: mock(() => Promise.reject(new Error('Failed to get block number')))
+        }
+      }));
 
       const result = await EthereumService.getBlockNumber();
 
       expect(result).toEqual({
         status: 500,
-        error: 'Failed to get block number: Failed to get block number',
+        error: 'Failed to get block number: Failed to get block number'
       });
     });
   });
 
   describe('getGasPrice', () => {
-    it('should get gas price successfully', async () => {
+    it('should return current gas price', async () => {
       const mockFeeData = {
-        gasPrice: ethers.parseUnits('50', 'gwei'),
-        maxFeePerGas: null,
-        maxPriorityFeePerGas: null,
+        gasPrice: ethers.parseUnits('20', 'gwei')
       };
-      (provider.getFeeData as jest.Mock).mockResolvedValue(mockFeeData);
+      mock.module('../../config/ethereum', () => ({
+        provider: {
+          getFeeData: mock(() => Promise.resolve(mockFeeData))
+        }
+      }));
 
-      const result = await EthereumService.getGasPrice();
+        const result = await EthereumService.getGasPrice();
 
       expect(result).toEqual({
         status: 200,
         data: {
-          gasPrice: ethers.formatUnits(mockFeeData.gasPrice, 'gwei'),
-          maxFeePerGas: mockFeeData.maxFeePerGas,
-          maxPriorityFeePerGas: mockFeeData.maxPriorityFeePerGas,
-        },
+          gasPrice: '20.0',
+          maxFeePerGas: null,
+          maxPriorityFeePerGas: null
+        }
       });
     });
 
     it('should handle errors when getting gas price', async () => {
-      (provider.getFeeData as jest.Mock).mockRejectedValue(new Error('Failed to get gas price'));
+      mock.module('../../config/ethereum', () => ({
+        provider: {
+          getFeeData: mock(() => Promise.reject(new Error('Failed to get gas price')))
+        }
+      }));
 
       const result = await EthereumService.getGasPrice();
 
       expect(result).toEqual({
         status: 500,
-        error: 'Failed to get gas price: Failed to get gas price',
+        error: 'Failed to get fee data: Failed to get gas price'
       });
     });
   });

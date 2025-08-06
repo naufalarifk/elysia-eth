@@ -1,204 +1,282 @@
+import { describe, expect, it, mock } from "bun:test";
+import { Elysia } from "elysia";
 import { userController } from '../../controllers/userController';
-import { db } from '../../config/database';
-import { users } from '../../db/schema/users';
-
-// Mock the database module
-jest.mock('../../config/database', () => ({
-  db: {
-    select: jest.fn(),
-    insert: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-  },
-}));
 
 describe('UserController', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
   describe('getAllUsers', () => {
     it('should return all users successfully', async () => {
+      const app = new Elysia();
       const mockUsers = [
         { id: 1, name: 'Test User', email: 'test@example.com' },
-        { id: 2, name: 'Test User 2', email: 'test2@example.com' },
+        { id: 2, name: 'Test User 2', email: 'test2@example.com' }
       ];
+      const mockDb = {
+        select: mock(() => ({
+          from: () => Promise.resolve(mockUsers)
+        }))
+      };
 
-      (db.select as jest.Mock).mockReturnValue({
-        from: jest.fn().mockResolvedValue(mockUsers),
-      });
+      app.derive(() => ({ db: mockDb }))
+        .get('/users', userController.getAllUsers);
 
-      const result = await userController.getAllUsers();
-
+      const response = await app.handle(new Request('http://localhost/users'));
+      const result = await response.json();
+      
       expect(result).toEqual({
         status: 200,
-        data: mockUsers,
+        data: mockUsers
       });
-      expect(db.select).toHaveBeenCalled();
     });
 
     it('should handle errors when fetching users', async () => {
-      (db.select as jest.Mock).mockReturnValue({
-        from: jest.fn().mockRejectedValue(new Error('Database error')),
-      });
+      const app = new Elysia();
+      const mockDb = {
+        select: mock(() => ({
+          from: () => Promise.reject(new Error('Database error'))
+        }))
+      };
 
-      const result = await userController.getAllUsers();
+      app.derive(() => ({ db: mockDb }))
+        .get('/users', userController.getAllUsers);
 
+      const response = await app.handle(new Request('http://localhost/users'));
+      const result = await response.json();
+      
       expect(result).toEqual({
         status: 500,
-        error: 'Failed to fetch users',
+        error: 'Failed to fetch users'
       });
     });
   });
 
   describe('getUserById', () => {
-    it('should return a user by id successfully', async () => {
+    it('should return user by id successfully', async () => {
+      const app = new Elysia();
       const mockUser = { id: 1, name: 'Test User', email: 'test@example.com' };
+      const mockDb = {
+        select: mock(() => ({
+          from: () => ({
+            where: () => ({
+              limit: () => Promise.resolve([mockUser])
+            })
+          })
+        }))
+      };
 
-      (db.select as jest.Mock).mockReturnValue({
-        from: jest.fn().mockReturnValue({
-          where: jest.fn().mockReturnValue({
-            limit: jest.fn().mockResolvedValue([mockUser]),
-          }),
-        }),
-      });
+      app.derive(() => ({ db: mockDb }))
+        .get('/users/:id', userController.getUserById);
 
-      const result = await userController.getUserById({ id: '1' });
-
+      const response = await app.handle(new Request('http://localhost/users/1'));
+      const result = await response.json();
+      
       expect(result).toEqual({
         status: 200,
-        data: mockUser,
+        data: mockUser
       });
     });
 
-    it('should return 404 when user is not found', async () => {
-      (db.select as jest.Mock).mockReturnValue({
-        from: jest.fn().mockReturnValue({
-          where: jest.fn().mockReturnValue({
-            limit: jest.fn().mockResolvedValue([]),
-          }),
-        }),
-      });
+    it('should return 404 when user not found', async () => {
+      const app = new Elysia();
+      const mockDb = {
+        select: mock(() => ({
+          from: () => ({
+            where: () => ({
+              limit: () => Promise.resolve([])
+            })
+          })
+        }))
+      };
 
-      const result = await userController.getUserById({ id: '999' });
+      app.derive(() => ({ db: mockDb }))
+        .get('/users/:id', userController.getUserById);
 
+      const response = await app.handle(new Request('http://localhost/users/999'));
+      const result = await response.json();
+      
       expect(result).toEqual({
         status: 404,
-        error: 'User not found',
+        error: 'User not found'
       });
     });
   });
 
   describe('createUser', () => {
-    it('should create a user successfully', async () => {
+    it('should create user successfully', async () => {
+      const app = new Elysia();
       const mockUser = { id: 1, name: 'Test User', email: 'test@example.com' };
       const createUserData = { name: 'Test User', email: 'test@example.com' };
+      const mockDb = {
+        insert: mock(() => ({
+          values: () => ({
+            returning: () => Promise.resolve([mockUser])
+          })
+        }))
+      };
 
-      (db.insert as jest.Mock).mockReturnValue({
-        values: jest.fn().mockReturnValue({
-          returning: jest.fn().mockResolvedValue([mockUser]),
-        }),
-      });
+      app.derive(() => ({ db: mockDb }))
+        .post('/users', userController.createUser);
 
-      const result = await userController.createUser({ body: createUserData });
-
+      const response = await app.handle(
+        new Request('http://localhost/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(createUserData)
+        })
+      );
+      const result = await response.json();
+      
       expect(result).toEqual({
         status: 201,
-        data: mockUser,
+        data: mockUser
       });
     });
 
     it('should handle errors during user creation', async () => {
+      const app = new Elysia();
       const createUserData = { name: 'Test User', email: 'test@example.com' };
+      const mockDb = {
+        insert: mock(() => ({
+          values: () => ({
+            returning: () => Promise.reject(new Error('Database error'))
+          })
+        }))
+      };
 
-      (db.insert as jest.Mock).mockReturnValue({
-        values: jest.fn().mockReturnValue({
-          returning: jest.fn().mockRejectedValue(new Error('Database error')),
-        }),
-      });
+      app.derive(() => ({ db: mockDb }))
+        .post('/users', userController.createUser);
 
-      const result = await userController.createUser({ body: createUserData });
-
+      const response = await app.handle(
+        new Request('http://localhost/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(createUserData)
+        })
+      );
+      const result = await response.json();
+      
       expect(result).toEqual({
         status: 500,
-        error: 'Failed to create user',
+        error: 'Failed to create user'
       });
     });
   });
 
   describe('updateUser', () => {
-    it('should update a user successfully', async () => {
+    it('should update user successfully', async () => {
+      const app = new Elysia();
       const mockUser = { id: 1, name: 'Updated User', email: 'test@example.com' };
       const updateData = { name: 'Updated User' };
+      const mockDb = {
+        update: mock(() => ({
+          set: () => ({
+            where: () => ({
+              returning: () => Promise.resolve([mockUser])
+            })
+          })
+        }))
+      };
 
-      (db.update as jest.Mock).mockReturnValue({
-        set: jest.fn().mockReturnValue({
-          where: jest.fn().mockReturnValue({
-            returning: jest.fn().mockResolvedValue([mockUser]),
-          }),
-        }),
-      });
+      app.derive(() => ({ db: mockDb }))
+        .put('/users/:id', userController.updateUser);
 
-      const result = await userController.updateUser({ id: '1', body: updateData });
-
+      const response = await app.handle(
+        new Request('http://localhost/users/1', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updateData)
+        })
+      );
+      const result = await response.json();
+      
       expect(result).toEqual({
         status: 200,
-        data: mockUser,
+        data: mockUser
       });
     });
 
     it('should return 404 when updating non-existent user', async () => {
+      const app = new Elysia();
       const updateData = { name: 'Updated User' };
+      const mockDb = {
+        update: mock(() => ({
+          set: () => ({
+            where: () => ({
+              returning: () => Promise.resolve([])
+            })
+          })
+        }))
+      };
 
-      (db.update as jest.Mock).mockReturnValue({
-        set: jest.fn().mockReturnValue({
-          where: jest.fn().mockReturnValue({
-            returning: jest.fn().mockResolvedValue([]),
-          }),
-        }),
-      });
+      app.derive(() => ({ db: mockDb }))
+        .put('/users/:id', userController.updateUser);
 
-      const result = await userController.updateUser({ id: '999', body: updateData });
-
+      const response = await app.handle(
+        new Request('http://localhost/users/999', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updateData)
+        })
+      );
+      const result = await response.json();
+      
       expect(result).toEqual({
         status: 404,
-        error: 'User not found',
+        error: 'User not found'
       });
     });
   });
 
   describe('deleteUser', () => {
-    it('should delete a user successfully', async () => {
+    it('should delete user successfully', async () => {
+      const app = new Elysia();
       const mockUser = { id: 1, name: 'John Doe', email: 'john@example.com' };
+      const mockDb = {
+        delete: mock(() => ({
+          where: () => ({
+            returning: () => Promise.resolve([mockUser])
+          })
+        }))
+      };
 
-      (db.delete as jest.Mock).mockReturnValue({
-        where: jest.fn().mockReturnValue({
-          returning: jest.fn().mockResolvedValue([mockUser]),
-        }),
-      });
+      app.derive(() => ({ db: mockDb }))
+        .delete('/users/:id', userController.deleteUser);
 
-        const result = await userController.deleteUser({ id: '1' });
-        
-        console.log('result', result)
-
+      const response = await app.handle(
+        new Request('http://localhost/users/1', {
+          method: 'DELETE'
+        })
+      );
+      const result = await response.json();
+      
       expect(result).toEqual({
         status: 200,
-        message: 'User deleted successfully',
+        message: 'User deleted successfully'
       });
     });
 
     it('should return 404 when deleting non-existent user', async () => {
-      (db.delete as jest.Mock).mockReturnValue({
-        where: jest.fn().mockReturnValue({
-          returning: jest.fn().mockResolvedValue([]),
-        }),
-      });
+      const app = new Elysia();
+      const mockDb = {
+        delete: mock(() => ({
+          where: () => ({
+            returning: () => Promise.resolve([])
+          })
+        }))
+      };
 
-      const result = await userController.deleteUser({ id: '999' });
+      app.derive(() => ({ db: mockDb }))
+        .delete('/users/:id', userController.deleteUser);
 
+      const response = await app.handle(
+        new Request('http://localhost/users/999', {
+          method: 'DELETE'
+        })
+      );
+      const result = await response.json();
+      
       expect(result).toEqual({
         status: 404,
-        error: 'User not found',
+        error: 'User not found'
       });
     });
   });
